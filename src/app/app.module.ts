@@ -5,12 +5,14 @@ import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
 import { MatDialogModule, MatButtonModule, MatCardModule, MatMenuModule, MatToolbarModule, MatIconModule } from '@angular/material';
 
 import { AppComponent, DialogAbout } from './app.component';
+import { RadarComponent } from './radar/radar.component';
 
 
 @NgModule({
   declarations: [
     AppComponent,
-    DialogAbout
+    DialogAbout,
+    RadarComponent
   ],
   imports: [
     BrowserModule,
