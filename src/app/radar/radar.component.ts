@@ -8,6 +8,10 @@ import { MatDialog } from '@angular/material';
     <canvas #radarCanvas width="300" height="300"></canvas>
     <canvas #readingCanvas width="300" height="125"></canvas>
     <button mat-raised-button color="primary" style="margin-top: 15px" (click)="tag()">Markeer huidige locatie</button>
+    <div *ngIf="tagLat">
+      <br>
+      Afstand: {{targetDistance}} meter
+    </div>
   </div>
   `,
   styles: []
@@ -28,7 +32,7 @@ export class RadarComponent implements OnInit, OnDestroy {
   watchId = 0; lat = 0; long = 0; accuracy = 0
   ttt = '>'
   initialOffset = null; iosCompass = false
-  tagLat = 0; tagLong = 0; targetBearing = 0; targetDistance = 100000
+  tagLat = 0; tagLong = 0; targetBearing = 0; targetDistance = 100000; getPositionError = false
 
   constructor(private dialog: MatDialog) { }
 
@@ -48,7 +52,7 @@ export class RadarComponent implements OnInit, OnDestroy {
     this.innerRadius = (1-(this.bevel/2))*this.radius
     this.ctx.translate(this.centerX, this.centerY)
     this.setEventHandlers()
-    this.watchId = navigator.geolocation.watchPosition(_position => this.positionResults(_position), _error => console.log(_error), {enableHighAccuracy:true,timeout:60000,maximumAge:0})
+    this.watchId = navigator.geolocation.watchPosition(_position => this.positionResults(_position), _error => this.positionError(_error), {enableHighAccuracy:true,timeout:60000,maximumAge:0})
     this.running = true
     //window.setInterval(() => this.paint(),10)
     this.paintRadar()
@@ -140,10 +144,19 @@ export class RadarComponent implements OnInit, OnDestroy {
     this.updateTarget()
   }
 
+  positionError(error) {
+    this.getPositionError = true
+  }
+
   updateTarget() {
     if(this.accuracy>0 && this.tagLat){
       this.targetBearing = this.getRhumbLineBearing(this.lat, this.long, this.tagLat, this.tagLong)
-      this.targetDistance = this.getDistance(this.lat, this.long, this.tagLat, this.tagLong)
+      let correction = 0
+      if(this.accuracy >=20) correction = 15;
+      if(this.accuracy <20) correction = 8;
+      if(this.accuracy <10) correction = 0;
+      this.targetDistance = this.getDistance(this.lat, this.long, this.tagLat, this.tagLong) - correction
+      if(this.targetDistance < 0) {this.targetDistance = 0}
     }
   }
 
@@ -180,21 +193,21 @@ export class RadarComponent implements OnInit, OnDestroy {
         Math.round(
             Math.acos(
                 Math.sin(
-                    endLat.toRad()
+                    endLat*Math.PI / 180
                 ) *
                 Math.sin(
-                    startLat.toRad()
+                    startLat*Math.PI / 180
                 ) +
                 Math.cos(
-                    endLat.toRad()
+                    endLat*Math.PI / 180
                 ) *
                 Math.cos(
-                    startLat.toRad()
+                    startLat*Math.PI / 180
                 ) *
                 Math.cos(
-                    startLong.toRad() - endLong.toRad()
+                    startLong*Math.PI / 180 - endLong*Math.PI / 180
                 )
-            ) * this.radius
+            ) * 6378137
         );
     return Math.floor(distance);
   }
@@ -216,7 +229,7 @@ export class RadarComponent implements OnInit, OnDestroy {
       ctx.fillStyle = 'lightgreen'  
       ctx.fillText('Compass is calibrating...', -0.5*innerRadius, 0.25*innerRadius)      
     }
-    if(this.lat == 0 && this.sweepAngle%30 > 10){
+    if(this.lat == 0 && this.sweepAngle%30 > 10 && !this.getPositionError){
       ctx.font = "10px Courier"
       ctx.fillStyle = 'lightgreen'  
       ctx.fillText('Finding GPS satellites...', -0.5*innerRadius, 0.5*innerRadius)      
@@ -235,6 +248,7 @@ export class RadarComponent implements OnInit, OnDestroy {
       ctx.fillStyle = gradient
       ctx.fill()  
     }
+    ctx.restore()
     // Schedule next
     requestAnimationFrame(() => this.paintRadar());
   }
@@ -248,10 +262,10 @@ export class RadarComponent implements OnInit, OnDestroy {
     // ---> lat/long + GPS signal + distance
     this.paintGpsSignalStrength(this.accuracy)
     // ctx.font = "10px Courier" // for debugging
-    ctx.font = "18px Courier"
+    ctx.font = "15px Courier"
     ctx.fillStyle = 'lightgreen'
     ctx.fillText(('Latitude : '+this.lat).slice(0,25), readingW*0.056, readingH*0.22)
-    // ctx.fillText(this.accuracy+'', readingW*0.056, readingH*0.32) //for debugging
+    // ctx.fillText(this.targetDistance+' -- '+this.heading, readingW*0.056, readingH*0.32) //for debugging
     ctx.fillText(('Longitude: '+this.long).slice(0,25), readingW*0.056, readingH*0.42)
     // Schedule next
    requestAnimationFrame(() => this.paintReading());
@@ -277,7 +291,7 @@ export class RadarComponent implements OnInit, OnDestroy {
       ctx.strokeStyle= 'rgba(255, 0, 0, '+ (1-(fade*10)) +')'
       ctx.lineWidth = radius * 0.03
       ctx.rotate(pos+0)
-      ctx.arc(0, -(0.85/50)*dist, radius * fade * 2, 0, 2*Math.PI)
+      ctx.arc(0, -((0.85*radius)/50)*dist, radius * fade * 2, 0, 2*Math.PI)
       ctx.stroke()
       ctx.rotate(-(pos+0))  
     }
@@ -400,11 +414,16 @@ export class RadarComponent implements OnInit, OnDestroy {
         ctx.fillRect((readingW*0.059)+((readingW/10)*(i-1)), 0+readingH*0.65, (readingW/10)*0.80, (readingH*0.24))
       }  
     } else {
+      // this.getPositionError = true
       ctx.fillStyle = 'black'
       ctx.fillRect(readingW*0.04,0+readingH*0.62,readingW-(readingW*0.08), readingH*0.3)
       ctx.font = '15px sans-serif'
       ctx.fillStyle = 'lightgreen'
-      ctx.fillText('Signal too weak (searching...)', readingW*0.17, readingH*0.8)
+      if(this.getPositionError){
+        ctx.fillText('Position error (location service enabled?)', readingW*0.04, readingH*0.8)                
+      } else {
+        ctx.fillText('Signal too weak (searching...)', readingW*0.17, readingH*0.8)        
+      }
     }
   }
 
