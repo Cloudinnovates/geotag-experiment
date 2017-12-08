@@ -5,6 +5,7 @@ import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
 import { MatDialogModule, MatButtonModule, MatCardModule, MatMenuModule, MatToolbarModule, MatIconModule } from '@angular/material';
 
 import { AppComponent, DialogAbout } from './app.component';
+import { DialogConfirm } from './radar/radar.component';
 import { RadarComponent } from './radar/radar.component';
 
 
@@ -12,6 +13,7 @@ import { RadarComponent } from './radar/radar.component';
   declarations: [
     AppComponent,
     DialogAbout,
+    DialogConfirm,
     RadarComponent
   ],
   imports: [
@@ -25,7 +27,7 @@ import { RadarComponent } from './radar/radar.component';
     MatToolbarModule,
     MatIconModule
   ],
-  entryComponents: [DialogAbout],
+  entryComponents: [DialogAbout, DialogConfirm],
   providers: [],
   bootstrap: [AppComponent]
 })
